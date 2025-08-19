@@ -1,0 +1,209 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Principle {
+  SELF_DISCIPLINE
+  SELF_RESPONSIBILITY
+  PERSISTENCE
+  FEARLESSNESS
+  EXCELLENCE
+  FORESIGHT
+  CHARACTER
+  HUMILITY
+}
+
+enum QuoteSourceType {
+  PUBLIC
+  AI
+  USER
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  hashedPassword String?
+
+  profile       Profile?
+  journals      JournalEntry[]
+  quotes        Quote[]          @relation("UserQuotes")
+  projects      Project[]
+  listings      MarketplaceListing[]
+  messages      ChatMessage[]
+  rooms         ChatRoom[]       @relation("RoomCreators")
+  program       UserProgram?
+  sharedLinks   SharedJourneyLink[]
+
+  accounts      Account[]
+  sessions      Session[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Profile {
+  id              String     @id @default(cuid())
+  userId          String     @unique
+  bio             String?
+  focusPrinciple  Principle?
+  location        String?
+  website         String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserProgram {
+  id           String     @id @default(cuid())
+  userId       String     @unique
+  startDate    DateTime   @default(now())
+  currentWeek  Int        @default(1)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model JournalEntry {
+  id          String     @id @default(cuid())
+  userId      String
+  principle   Principle
+  content     String
+  mood        Int?
+  createdAt   DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Quote {
+  id            String          @id @default(cuid())
+  text          String
+  author        String
+  principle     Principle
+  sourceType    QuoteSourceType
+  createdByUserId String?
+  createdAt     DateTime        @default(now())
+
+  createdByUser User? @relation("UserQuotes", fields: [createdByUserId], references: [id])
+
+  @@index([principle, sourceType])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String
+  tags        Json?    @default("[]")
+  principle   Principle?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MarketplaceListing {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String
+  priceCents  Int
+  currency    String   @default("USD")
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+model ChatRoom {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  name            String
+  type            String    @default("PUBLIC")
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+
+  createdByUser User       @relation("RoomCreators", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  messages      ChatMessage[]
+}
+
+model ChatMessage {
+  id          String            @id @default(cuid())
+  roomId      String
+  userId      String
+  content     String
+  status      ModerationStatus  @default(PENDING)
+  createdAt   DateTime          @default(now())
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+}
+
+model SharedJourneyLink {
+  id        String   @id @default(cuid())
+  userId    String
+  slug      String   @unique
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
